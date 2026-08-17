@@ -1,0 +1,31 @@
+>HMAC - stands for Hash Based Message Authentication Code. 
+>Its a MAC type of authentication required for executing a cryptographic hash function.
+>It ensures data integrity and authenticity.
+>Uses a hash function and a secret key.
+>Use cases are HTTPS, FTPS, SFTP.
+>The cryptographic hash function maybe MD-5, SHA-1 or SHA-256.
+>HMAC uses symmetric key while Digital Signatures use an asymmetric (two different keys)
+
+Working
+>HMAC provides the client and the server with a shared key that is only known to them as is used to decrypt the message.
+>Formula  HMAC= hashFunc(secret key + message)
+>For security purposes the messages are hashed in two different steps.
+>i.e HMAC key (key, message) = H(mod1(key) || mod2(key) || message)
+
+Advantages
+1. Ideal for high performance systems
+2. Provides a higher security compared to digital signatures.
+3. Used in administrations where public key systems are prohibited.
+
+Disadvantages.
+1. Uses a shared key which may lead to non-repudition.
+2. Securely managing and distributing keys can be challenging.
+3. Security relies on the length of the secret key
+4. Strength relies on the chosen hash function.
+
+Applications.
+1. Verification of emails addresses during account creation.
+2. Authentication of form data that is sent to the client browser then submitted back.
+3. Used for Internet of Things since its cheaper.
+4. Needed for password resetting where a link is sent.
+5. Can take a long message and convert it into a fixed length using message digest.
