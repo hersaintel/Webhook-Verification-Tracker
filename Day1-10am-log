@@ -29,3 +29,4 @@ Applications.
 3. Used for Internet of Things since its cheaper.
 4. Needed for password resetting where a link is sent.
 5. Can take a long message and convert it into a fixed length using message digest.
+
