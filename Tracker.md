@@ -9,7 +9,7 @@
 
 ## Progress Checklist
 
-- [ ] Day 1 10 AM — Understand HMAC-based webhook verification (Stripe/GitHub docs), notes in own words
+- [] Day 1 10 AM — Understand HMAC-based webhook verification (Stripe/GitHub docs), notes in own words
 - [ ] Day 1 6 PM — Build sender script (fake warehouse POST + HMAC signature header)
 - [ ] Day 2 10 AM — Build receiver endpoint (recompute HMAC, timing-safe compare, accept/reject)
 - [ ] Day 2 5 PM — Break it on purpose (wrong secret / tampered payload / missing header / replay) + log each
