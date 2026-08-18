@@ -1,0 +1,39 @@
+Blocker Journal
+Entry 1
+
+Timestamp: 2026-08-17 15:37
+What I was trying to do: Run unit tests with coverage (pytest -v --cov=hmac_service)
+Exact error / symptom: pytest: error: unrecognized arguments: --cov=hmac_service even though pytest-cov was installed
+Resources checked: pip list, which pytest, python -c "import pytest...", documentation for pytest-cov
+What fixed it (or didn't): The system pytest was being used instead of the one inside the virtual environment. Using python -m pytest fixed it.
+Time spent stuck: ~25 minutes
+
+
+Entry 2
+
+Timestamp: 2026-08-17 16:02
+What I was trying to do: Run the warehouse sender script against the receiver
+Exact error / symptom: Status code: 404 – {"detail":"Not Found"}
+Resources checked: FastAPI docs, existing routes in app.py, sender URL configuration
+What fixed it (or didn't): The /webhook endpoint had not been created yet. After implementing the endpoint the request was accepted.
+Time spent stuck: ~15 minutes
+
+
+Entry 3
+
+Timestamp: 2026-08-17 19:13
+What I was trying to do: Push the first commit to GitHub
+Exact error / symptom: ! [rejected] main -> main (fetch first) and later “divergent branches”
+Resources checked: Git documentation, git status, git log, GitHub remote
+What fixed it (or didn't): Ran git pull --rebase origin main then git push. Also removed the accidentally committed .env file afterwards.
+Time spent stuck: ~20 minutes
+
+
+Entry 4
+
+Timestamp: 2026-08-18 08:25
+What I was trying to do: Add proper rejection logging to the webhook endpoint
+Exact error / symptom: None (preventive) – needed clear logs for missing header and invalid signature cases
+Resources checked: Python logging module, FastAPI request/header handling
+What fixed it (or didn't): Added structured logging with logger.warning for each rejection reason. Worked on first try after restart.
+Time spent stuck: ~10 minutes
