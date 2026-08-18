@@ -14,7 +14,9 @@
 [✓] Day 1 6 PM — Build sender script (fake warehouse POST + HMAC signature header)
 
 [✓] Day 2 10 AM — Build receiver endpoint (recompute HMAC, timing-safe compare, accept/reject)
-- [ ] Day 2 5 PM — Break it on purpose (wrong secret / tampered payload / missing header / replay) + log each
+
+[✓] Day 2 5 PM — Break it on purpose (wrong secret / tampered payload / missing header / replay) + log each
+
 - [ ] Journal written up in full sentences, ready to submit
 - [ ] Prototype demoable end-to-end (valid request accepted, invalid rejected)
 
