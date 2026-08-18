@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Warehouse Self-Service</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --card: #ffffff;
+      --border: #dee2e6;
+      --text: #212529;
+      --muted: #6c757d;
+      --primary: #0d6efd;
+      --primary-hover: #0b5ed7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 1.5rem; margin-bottom: 4px; }
+    .subtitle { color: var(--muted); margin-bottom: 24px; font-size: 0.95rem; }
+    #chat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      height: 460px;
+      overflow-y: auto;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .msg {
+      margin-bottom: 12px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      max-width: 85%;
+      white-space: pre-wrap;
+      font-size: 0.95rem;
+    }
+    .user {
+      background: var(--primary);
+      color: white;
+      margin-left: auto;
+    }
+    .bot {
+      background: #e9ecef;
+      color: var(--text);
+    }
+    #input-area {
+      display: flex;
+      gap: 8px;
+    }
+    input[type="text"] {
+      flex: 1;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+    button {
+      padding: 12px 20px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:hover { background: var(--primary-hover); }
+    .footer {
+      margin-top: 24px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Warehouse Self-Service</h1>
+    <p class="subtitle">Check order status, inventory, or request a return</p>
+
+    <div id="chat"></div>
+
+    <div id="input-area">
+      <input type="text" id="message" placeholder="Example: status of ORD-2026-88421" autofocus>
+      <button onclick="send()">Send</button>
+    </div>
+
+    <p class="footer">
+      Demo orders: ORD-2026-88421 · ORD-2026-77102 · ORD-2026-90311
+    </p>
+  </div>
+
+  <script>
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("message");
+
+    function addMessage(text, isUser) {
+      const div = document.createElement("div");
+      div.className = "msg " + (isUser ? "user" : "bot");
+      div.textContent = text;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    async function send() {
+      const text = input.value.trim();
+      if (!text) return;
+
+      addMessage(text, true);
+      input.value = "";
+
+      try {
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text })
+        });
+        const data = await res.json();
+        addMessage(data.reply, false);
+      } catch (err) {
+        addMessage("Unable to process your request at this time.", false);
+      }
+    }
+
+    input.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") send();
+    });
+
+    addMessage(
+    "Welcome. I can help you with order status, inventory availability, and return requests.\n\n" +
+    "Examples:\n" +
+    "• status of ORD-2026-88421\n" +
+    "• stock of SKU-1001\n" +
+    "• I want to return ORD-2026-77102",
+    false
+    );
+</script>
+</body>
+</html>

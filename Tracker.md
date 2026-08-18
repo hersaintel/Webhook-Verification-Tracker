@@ -18,7 +18,8 @@
 [✓] Day 2 5 PM — Break it on purpose (wrong secret / tampered payload / missing header / replay) + log each
 
 - [ ] Journal written up in full sentences, ready to submit
-- [ ] Prototype demoable end-to-end (valid request accepted, invalid rejected)
+
+[✓] Prototype demoable end-to-end (valid request accepted, invalid rejected)
 
 ---
 
