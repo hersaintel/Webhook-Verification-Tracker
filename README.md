@@ -1,54 +1,46 @@
-# Warehouse Webhook Verification & Self-Service Portal
+# Modern Webhook Signature Verification
 
-Prototype demonstrating HMAC signature verification for incoming webhooks, combined with a simple customer self-service interface and admin review workflow.
+A focused prototype that demonstrates secure webhook ingestion using HMAC-SHA256 with timestamp-based replay protection.
 
-## Overview
+## Goal
 
-This project implements:
+Accept only valid signed requests and reject everything else:
 
-- **HMAC-protected webhook endpoint** – verifies the authenticity and integrity of incoming requests from a warehouse system
-- **Customer self-service chatbot** – check order status, inventory availability, and submit return requests
-- **Return business rule** – returns under $100 are auto-approved; returns of $100 or more require human review
-- **Admin review panel** – simple authenticated interface to approve or reject high-value returns
+- Missing signature header
+- Invalid signature
+- Expired or future timestamp (replay protection)
+- Wrong secret
 
-The core security goal is to accept only valid HMAC-signed requests and reject everything else (missing signature, invalid signature, or wrong secret).
+## How It Works
 
-## Features
+### Signature Format
 
-### Webhook Verification
-- Timing-safe HMAC comparison (`hmac.compare_digest`)
-- Support for SHA-256 (default)
-- Clear rejection logging
-- End-to-end demo with a simulated warehouse sender
+The sender creates a header in this format:
 
-### Customer Self-Service
-- Order status lookup by Order ID
-- Inventory / stock check by SKU
-- Return request submission with automatic threshold logic
+X-Signature: t=1712345678,v1=a1b2c3d4e5f6...
 
-### Admin
-- Basic authentication (demo credentials)
-- View and process pending returns (> $100)
 
-## Tech Stack
 
-- Python 3.13
-- FastAPI
-- Pydantic
-- Uvicorn
-- httpx (sender)
-- Standard library `hmac` + `hashlib`
+- `t` = Unix timestamp
+- `v1` = HMAC-SHA256 of the string `timestamp.body`
+
+### Verification Steps
+
+1. Check that the `X-Signature` header exists
+2. Parse the timestamp and signature
+3. Reject if the timestamp is outside the allowed window (±5 minutes)
+4. Recompute the HMAC over `timestamp.body`
+5. Perform a timing-safe comparison
+6. Accept or reject accordingly
 
 ## Project Structure
+
 hmac-prototype/
-├── app.py                 # Main FastAPI application
-├── hmac_service.py        # HMAC generation & verification
+├── app.py                 # FastAPI receiver
+├── hmac_service.py        # HMAC helpers + modern verification
 ├── sender.py              # Simulated warehouse sender
-├── static/
-│   ├── index.html         # Customer self-service UI
-│   └── admin.html         # Admin review panel
-├── test_hmac.py           # Unit tests
-├── test_e2e.py            # End-to-end tests
+├── test_hmac.py
+├── test_e2e.py
 ├── .env.example
 ├── .gitignore
 └── README.md
@@ -56,72 +48,57 @@ hmac-prototype/
 
 ## Quick Start
 
-### 1. Clone and set up
+### 1. Setup
 
-```bash
-cd hmac-prototype
+``` bash
 python3 -m venv venv
 source venv/bin/activate
 pip install fastapi uvicorn httpx pytest pytest-cov
 
-2. Environment variables
-Bashcp .env.example .env
-Edit .env:
-envHMAC_SECRET=super-secret-key-change-me
-ADMIN_USER=admin
-ADMIN_PASS=admin123
+2. Environment
+export HMAC_SECRET="super-secret-key-change-me"
 
-3. Run the server
-Bashexport HMAC_SECRET=super-secret-key-change-me
+3. Run the receiver
 uvicorn app:app --reload --port 8000
 
-Customer portal: http://127.0.0.1:8000
-Admin panel: http://127.0.0.1:8000/admin
-
-Demo: HMAC Verification (End-to-End)
-Valid request (accepted)
-Bashexport HMAC_SECRET=super-secret-key-change-me
+4. Send a valid request
 python sender.py
 Expected result: HTTP 200 – request accepted.
-Invalid requests (rejected)
-Missing signature header
-Bashcurl -X POST http://127.0.0.1:8000/webhook \
+
+
+Demonstration of Rejection Cases
+
+Missing header
+
+curl -X POST http://127.0.0.1:8000/webhook \
   -H "Content-Type: application/json" \
   -d '{"event":"test"}'
-Wrong signature
-Bashcurl -X POST http://127.0.0.1:8000/webhook \
+
+Invalid signature
+
+curl -X POST http://127.0.0.1:8000/webhook \
   -H "Content-Type: application/json" \
-  -H "X-HMAC-Signature: invalidsignature" \
+  -H "X-Signature: t=1712345678,v1=invalidsignature" \
   -d '{"event":"test"}'
 Wrong secret
-BashHMAC_SECRET=wrong-secret python sender.py
-All invalid cases return HTTP 401 and are logged.
-Customer Self-Service Examples
+HMAC_SECRET="wrong-secret" python sender.py
 
-status of ORD-2026-88421
-stock of SKU-1001
-I want to return ORD-2026-77102 (this one is > $100 → pending review)
-I want to return ORD-2026-88421 (this one is < $100 → auto-approved)
+Expired timestamp (replay)
 
-Admin Access
+Manually craft a request with an old timestamp. The receiver will reject it with:
 
-URL: http://127.0.0.1:8000/admin
-Username: admin
-Password: admin123
+Timestamp outside allowed tolerance (possible replay)
+
+Available Endpoints
+
+MethodPathDescriptionGET/healthHealth 
+checkPOST/webhookMain signature verification endpointGET/eventsRecent accepted events (for demo)GET/docsAutomatic API documentation
+Security Properties
+
+Timing-safe comparison (hmac.compare_digest)
+Timestamp-based replay protection (5-minute tolerance)
+Shared secret never sent over the wire
+Clear structured rejection logging
 
 Running Tests
-Bashpython -m pytest -v --cov=hmac_service --cov-report=term-missing
-Security Notes
-
-Never commit the real .env file
-The HMAC secret must be shared only between the sender and the receiver
-Timing-safe comparison is used to mitigate timing attacks
-Admin credentials are for demonstration only
-
-Future Improvements
-
-Persistent storage (database) instead of in-memory data
-Real Google OAuth for admin login
-Replay protection (timestamp + nonce)
-Rate limiting
-Structured audit logging
+python -m pytest -v --cov=hmac_service --cov-report=term-missing
