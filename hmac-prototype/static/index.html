@@ -64,6 +64,7 @@
       color: #fff;
     }
     button:hover { background: #0b5ed7; }
+    button:disabled { opacity: 0.7; cursor: default; }
     button.secondary { background: #e9ecef; color: #212529; }
     button.secondary:hover { background: #dee2e6; }
     #msg { margin-top: 8px; min-height: 1.4em; font-size: 0.95rem; color: #333; }
@@ -124,7 +125,7 @@
         <div class="name">Sam Okonkwo</div>
       </div>
     </div>
-    <p class="hint">QR codes must encode your public HTTPS check-in URLs</p>
+    <p class="hint">QR codes must encode your public HTTPS check-in URLs.</p>
   </div>
 
   <div class="card">
@@ -150,81 +151,83 @@
     function statusCell(status) {
       const label = statusLabel[status] || status;
       if (status === "pending") {
-        return `<span class="status pending"><span class="spinner" aria-hidden="true"></span>${label}</span>`;
+        return '<span class="status pending"><span class="spinner" aria-hidden="true"></span>' + label + '</span>';
       }
-      return `<span class="status ${status}">${label}</span>`;
+      return '<span class="status ' + status + '">' + label + '</span>';
     }
 
     async function refresh(fromButton) {
       const msg = document.getElementById("msg");
+      const btn = document.getElementById("btnRefresh");
+
+      if (fromButton && btn) {
+        btn.disabled = true;
+        btn.textContent = "Refreshing…";
+      }
+
       try {
-        const res = await fetch("/attendees", { cache: "no-store" });
+        const res = await fetch("/attendees?ts=" + Date.now(), { cache: "no-store" });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
         const tbody = document.getElementById("list");
         tbody.innerHTML = "";
-        (data.attendees || []).forEach(a => {
+        (data.attendees || []).forEach(function (a) {
           const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${a.id}</td>
-            <td>${a.name}</td>
-            <td>${statusCell(a.status)}</td>`;
+          tr.innerHTML =
+            "<td>" + a.id + "</td>" +
+            "<td>" + a.name + "</td>" +
+            "<td>" + statusCell(a.status) + "</td>";
           tbody.appendChild(tr);
         });
         if (fromButton) {
-          msg.textContent = "List updated.";
+          msg.textContent = "List updated at " + new Date().toLocaleTimeString();
           msg.className = "ok";
         }
       } catch (e) {
         console.error(e);
         msg.textContent = "Unable to load attendees.";
         msg.className = "error";
+      } finally {
+        if (fromButton && btn) {
+          btn.disabled = false;
+          btn.textContent = "Refresh";
+        }
       }
     }
 
-async function refresh(fromButton) {
-  const msg = document.getElementById("msg");
-  const btn = document.getElementById("btnRefresh");
+    async function checkin() {
+      const id = document.getElementById("attendeeId").value.trim();
+      const msg = document.getElementById("msg");
+      msg.className = "";
+      msg.textContent = "Submitting…";
 
-  if (fromButton && btn) {
-    btn.disabled = true;
-    btn.textContent = "Refreshing…";
-  }
+      try {
+        const res = await fetch("/checkin/" + encodeURIComponent(id), { method: "POST" });
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          msg.textContent = data.detail || "Check-in failed.";
+          msg.className = "error";
+        } else {
+          msg.textContent = data.message || "Check-in started.";
+          msg.className = "ok";
+        }
+        await refresh(false);
+      } catch (e) {
+        msg.textContent = "Request failed.";
+        msg.className = "error";
+      }
+    }
 
-  try {
-    const res = await fetch("/attendees?ts=" + Date.now(), { cache: "no-store" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
-    const tbody = document.getElementById("list");
-    tbody.innerHTML = "";
-    (data.attendees || []).forEach(a => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${a.id}</td>
-        <td>${a.name}</td>
-        <td>${statusCell(a.status)}</td>`;
-      tbody.appendChild(tr);
+    document.getElementById("btnCheckin").addEventListener("click", checkin);
+    document.getElementById("btnRefresh").addEventListener("click", function () {
+      refresh(true);
     });
-    if (fromButton) {
-      msg.textContent = "List updated at " + new Date().toLocaleTimeString();
-      msg.className = "ok";
-    }
-  } catch (e) {
-    console.error(e);
-    msg.textContent = "Unable to load attendees.";
-    msg.className = "error";
-  } finally {
-    if (fromButton && btn) {
-      btn.disabled = false;
-      btn.textContent = "Refresh";
-    }
-  }
-}
+    document.getElementById("attendeeId").addEventListener("keypress", function (e) {
+      if (e.key === "Enter") checkin();
+    });
 
-document.getElementById("btnCheckin").addEventListener("click", checkin);
-document.getElementById("btnRefresh").addEventListener("click", function () {
-  refresh(true);
-});
+    refresh(false);
+    setInterval(function () { refresh(false); }, 2000);
   </script>
 </body>
 </html>
