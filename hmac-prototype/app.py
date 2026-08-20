@@ -183,3 +183,31 @@ def on_startup():
 @app.get("/")
 def kiosk():
     return FileResponse("static/index.html")
+
+@app.post("/admin/reset")
+def admin_reset(x_admin_token: str | None = Header(default=None, alias="X-Admin-Token")):
+    """
+    Reset all attendees to not_checked_in and clear the print queue.
+    Protected by a simple shared token for the demo.
+    """
+    expected = os.getenv("ADMIN_TOKEN", "demo-reset-token")
+    if x_admin_token != expected:
+        raise HTTPException(status_code=401, detail="Invalid admin token")
+
+    # Reset attendees
+    for att_id in ("ATT-001", "ATT-002", "ATT-003"):
+        att = get_attendee(att_id)
+        if att:
+            att["status"] = STATUS_NOT
+            set_attendee(att)
+
+    # Clear print queue
+    from attendees import r
+    r.delete("print_queue")
+
+    logger.info("ADMIN | attendees and print queue reset")
+    return {
+        "status": "ok",
+        "message": "All attendees reset to not_checked_in; print queue cleared",
+        "attendees": list_attendees(),
+    }

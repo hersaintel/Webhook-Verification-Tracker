@@ -5,73 +5,177 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solstice Events – Check-in Kiosk</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 32px auto; padding: 0 16px; color: #111; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 720px;
+      margin: 32px auto;
+      padding: 0 16px;
+      color: #111;
+      background: #f8f9fa;
+    }
     h1 { font-size: 1.4rem; margin-bottom: 4px; }
-    .sub { color: #555; margin-bottom: 24px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #ddd; }
-    .status { font-weight: 600; }
+    .sub { color: #555; margin-bottom: 24px; font-size: 0.95rem; }
+    .card {
+      background: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 12px 8px; border-bottom: 1px solid #eee; }
+    th { font-size: 0.85rem; color: #6c757d; font-weight: 600; }
+    .status {
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .not_checked_in { color: #6b7280; }
     .pending { color: #b45309; }
     .checked_in { color: #047857; }
-    .not_checked_in { color: #6b7280; }
-    .row { display: flex; gap: 8px; margin-bottom: 16px; }
-    input { flex: 1; padding: 10px; font-size: 1rem; }
-    button { padding: 10px 16px; font-size: 1rem; cursor: pointer; }
-    #msg { margin-top: 12px; min-height: 1.4em; }
+
+    /* Spinner */
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #fcd34d;
+      border-top-color: #b45309;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    input {
+      flex: 1;
+      min-width: 140px;
+      padding: 10px 12px;
+      font-size: 1rem;
+      border: 1px solid #ced4da;
+      border-radius: 6px;
+    }
+    button {
+      padding: 10px 16px;
+      font-size: 1rem;
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      background: #0d6efd;
+      color: #fff;
+    }
+    button:hover { background: #0b5ed7; }
+    button.secondary {
+      background: #e9ecef;
+      color: #212529;
+    }
+    button.secondary:hover { background: #dee2e6; }
+    #msg {
+      margin-top: 8px;
+      min-height: 1.4em;
+      font-size: 0.95rem;
+      color: #333;
+    }
+    #msg.error { color: #b91c1c; }
+    #msg.ok { color: #047857; }
+    .hint { font-size: 0.85rem; color: #6c757d; margin-top: 8px; }
   </style>
 </head>
 <body>
   <h1>Solstice Events – Check-in Kiosk</h1>
-  <p class="sub">Scan or enter attendee ID. Status updates after printer confirmation.</p>
+  <p class="sub">Scan a QR code or enter an attendee ID. Status stays pending until the badge printer confirms.</p>
 
-  <div class="row">
-    <input id="attendeeId" placeholder="e.g. ATT-001" value="ATT-001">
-    <button onclick="checkin()">Check In</button>
-    <button onclick="refresh()">Refresh</button>
+  <div class="card">
+    <div class="row">
+      <input id="attendeeId" placeholder="e.g. ATT-001" value="ATT-001">
+      <button onclick="checkin()">Check In</button>
+      <button class="secondary" onclick="refresh()">Refresh</button>
+    </div>
+    <div id="msg"></div>
+    <p class="hint">Demo IDs: ATT-001 · ATT-002 · ATT-003</p>
   </div>
-  <div id="msg"></div>
 
-  <table>
-    <thead>
-      <tr><th>ID</th><th>Name</th><th>Status</th></tr>
-    </thead>
-    <tbody id="list"></tbody>
-  </table>
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="list"></tbody>
+    </table>
+  </div>
 
   <script>
+    const statusLabel = {
+      not_checked_in: "Not checked in",
+      pending: "Pending – waiting for printer",
+      checked_in: "Checked in"
+    };
+
+    function statusCell(status) {
+      const label = statusLabel[status] || status;
+      if (status === "pending") {
+        return `<span class="status pending"><span class="spinner" aria-hidden="true"></span>${label}</span>`;
+      }
+      return `<span class="status ${status}">${label}</span>`;
+    }
+
     async function refresh() {
-      const res = await fetch("/attendees");
-      const data = await res.json();
-      const tbody = document.getElementById("list");
-      tbody.innerHTML = "";
-      data.attendees.forEach(a => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${a.id}</td><td>${a.name}</td>
-          <td class="status ${a.status}">${a.status}</td>`;
-        tbody.appendChild(tr);
-      });
+      try {
+        const res = await fetch("/attendees");
+        const data = await res.json();
+        const tbody = document.getElementById("list");
+        tbody.innerHTML = "";
+        (data.attendees || []).forEach(a => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${a.id}</td>
+            <td>${a.name}</td>
+            <td>${statusCell(a.status)}</td>`;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        document.getElementById("msg").textContent = "Unable to load attendees.";
+        document.getElementById("msg").className = "error";
+      }
     }
 
     async function checkin() {
       const id = document.getElementById("attendeeId").value.trim();
       const msg = document.getElementById("msg");
-      msg.textContent = "Submitting...";
+      msg.className = "";
+      msg.textContent = "Submitting…";
+
       try {
-        const res = await fetch(`/checkin/${id}`, { method: "POST" });
-        const data = await res.json();
+        const res = await fetch(`/checkin/${encodeURIComponent(id)}`, { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+
         if (!res.ok) {
-          msg.textContent = data.detail || "Error";
+          msg.textContent = data.detail || "Check-in failed.";
+          msg.className = "error";
         } else {
-          msg.textContent = data.message;
+          msg.textContent = data.message || "Check-in started.";
+          msg.className = "ok";
         }
         await refresh();
       } catch (e) {
-        msg.textContent = "Request failed";
+        msg.textContent = "Request failed.";
+        msg.className = "error";
       }
     }
 
+    document.getElementById("attendeeId").addEventListener("keypress", (e) => {
+      if (e.key === "Enter") checkin();
+    });
+
     refresh();
-    setInterval(refresh, 2000); // poll so pending → checked_in appears automatically
+    setInterval(refresh, 2000);
   </script>
 </body>
 </html>
