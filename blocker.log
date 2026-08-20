@@ -37,3 +37,9 @@ Exact error / symptom: None (preventive) – needed clear logs for missing heade
 Resources checked: Python logging module, FastAPI request/header handling
 What fixed it (or didn't): Added structured logging with logger.warning for each rejection reason. Worked on first try after restart.
 Time spent stuck: ~10 minutes
+
+Entry 5
+
+Timestamp: 2026-08-20 09:15
+What I was trying to do: Committing .env file which is not a good practice.
+What fixed it: git status to check if .env file is staged for commit. git rm --cached .env echo ".env" >> .gitignore whcih removes any cached .env file and adds it to .gitignore.

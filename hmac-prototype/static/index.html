@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Solstice Events – Check-in Kiosk</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 32px auto; padding: 0 16px; color: #111; }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    .sub { color: #555; margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #ddd; }
+    .status { font-weight: 600; }
+    .pending { color: #b45309; }
+    .checked_in { color: #047857; }
+    .not_checked_in { color: #6b7280; }
+    .row { display: flex; gap: 8px; margin-bottom: 16px; }
+    input { flex: 1; padding: 10px; font-size: 1rem; }
+    button { padding: 10px 16px; font-size: 1rem; cursor: pointer; }
+    #msg { margin-top: 12px; min-height: 1.4em; }
+  </style>
+</head>
+<body>
+  <h1>Solstice Events – Check-in Kiosk</h1>
+  <p class="sub">Scan or enter attendee ID. Status updates after printer confirmation.</p>
+
+  <div class="row">
+    <input id="attendeeId" placeholder="e.g. ATT-001" value="ATT-001">
+    <button onclick="checkin()">Check In</button>
+    <button onclick="refresh()">Refresh</button>
+  </div>
+  <div id="msg"></div>
+
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Name</th><th>Status</th></tr>
+    </thead>
+    <tbody id="list"></tbody>
+  </table>
+
+  <script>
+    async function refresh() {
+      const res = await fetch("/attendees");
+      const data = await res.json();
+      const tbody = document.getElementById("list");
+      tbody.innerHTML = "";
+      data.attendees.forEach(a => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${a.id}</td><td>${a.name}</td>
+          <td class="status ${a.status}">${a.status}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function checkin() {
+      const id = document.getElementById("attendeeId").value.trim();
+      const msg = document.getElementById("msg");
+      msg.textContent = "Submitting...";
+      try {
+        const res = await fetch(`/checkin/${id}`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) {
+          msg.textContent = data.detail || "Error";
+        } else {
+          msg.textContent = data.message;
+        }
+        await refresh();
+      } catch (e) {
+        msg.textContent = "Request failed";
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 2000); // poll so pending → checked_in appears automatically
+  </script>
+</body>
+</html>
