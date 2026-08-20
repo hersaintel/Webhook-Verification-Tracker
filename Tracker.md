@@ -67,8 +67,8 @@
 - [x] Kiosk UI local
 
 ### Public demo
-- [ ] requirements.txt + start commands
-- [ ] Deploy web + worker on Railway/Render
+- [x] requirements.txt + start commands
+- [x] Deploy web + worker on Railway/Render
 - [ ] Redis add-on + env vars
 - [ ] GET /checkin/{id} for QR scans
 - [ ] Public HTTPS URL working
