@@ -201,6 +201,8 @@ def admin_reset(x_admin_token: str | None = Header(default=None, alias="X-Admin-
             att["status"] = STATUS_NOT
             set_attendee(att)
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
     # Clear print queue
     from attendees import r
     r.delete("print_queue")

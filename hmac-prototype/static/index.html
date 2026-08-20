@@ -14,6 +14,7 @@
       background: #f8f9fa;
     }
     h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    h2 { font-size: 1.05rem; margin: 0 0 12px; }
     .sub { color: #555; margin-bottom: 24px; font-size: 0.95rem; }
     .card {
       background: #fff;
@@ -34,8 +35,6 @@
     .not_checked_in { color: #6b7280; }
     .pending { color: #b45309; }
     .checked_in { color: #047857; }
-
-    /* Spinner */
     .spinner {
       width: 14px;
       height: 14px;
@@ -45,10 +44,7 @@
       animation: spin 0.7s linear infinite;
       flex-shrink: 0;
     }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
+    @keyframes spin { to { transform: rotate(360deg); } }
     .row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
     input {
       flex: 1;
@@ -68,20 +64,31 @@
       color: #fff;
     }
     button:hover { background: #0b5ed7; }
-    button.secondary {
-      background: #e9ecef;
-      color: #212529;
-    }
+    button.secondary { background: #e9ecef; color: #212529; }
     button.secondary:hover { background: #dee2e6; }
-    #msg {
-      margin-top: 8px;
-      min-height: 1.4em;
-      font-size: 0.95rem;
-      color: #333;
-    }
+    #msg { margin-top: 8px; min-height: 1.4em; font-size: 0.95rem; color: #333; }
     #msg.error { color: #b91c1c; }
     #msg.ok { color: #047857; }
     .hint { font-size: 0.85rem; color: #6c757d; margin-top: 8px; }
+    .qr-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+    }
+    .qr-item {
+      text-align: center;
+      padding: 12px;
+      border: 1px solid #eee;
+      border-radius: 8px;
+    }
+    .qr-item img {
+      width: 140px;
+      height: 140px;
+      object-fit: contain;
+      background: #fff;
+    }
+    .qr-item .id { font-weight: 600; margin-top: 8px; }
+    .qr-item .name { font-size: 0.85rem; color: #6c757d; }
   </style>
 </head>
 <body>
@@ -91,11 +98,33 @@
   <div class="card">
     <div class="row">
       <input id="attendeeId" placeholder="e.g. ATT-001" value="ATT-001">
-      <button onclick="checkin()">Check In</button>
-      <button class="secondary" onclick="refresh()">Refresh</button>
+      <button type="button" id="btnCheckin">Check In</button>
+      <button type="button" id="btnRefresh" class="secondary">Refresh</button>
     </div>
     <div id="msg"></div>
     <p class="hint">Demo IDs: ATT-001 · ATT-002 · ATT-003</p>
+  </div>
+
+  <div class="card">
+    <h2>Scan QR to check in</h2>
+    <div class="qr-grid">
+      <div class="qr-item">
+        <img src="/static/qrcodes/att-001.png" alt="QR for ATT-001">
+        <div class="id">ATT-001</div>
+        <div class="name">Alex Rivera</div>
+      </div>
+      <div class="qr-item">
+        <img src="/static/qrcodes/att-002.png" alt="QR for ATT-002">
+        <div class="id">ATT-002</div>
+        <div class="name">Jordan Lee</div>
+      </div>
+      <div class="qr-item">
+        <img src="/static/qrcodes/att-003.png" alt="QR for ATT-003">
+        <div class="id">ATT-003</div>
+        <div class="name">Sam Okonkwo</div>
+      </div>
+    </div>
+    <p class="hint">QR codes must encode your public HTTPS check-in URLs (e.g. https://YOUR-APP.onrender.com/checkin/ATT-001).</p>
   </div>
 
   <div class="card">
@@ -126,9 +155,11 @@
       return `<span class="status ${status}">${label}</span>`;
     }
 
-    async function refresh() {
+    async function refresh(fromButton) {
+      const msg = document.getElementById("msg");
       try {
-        const res = await fetch("/attendees");
+        const res = await fetch("/attendees", { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
         const tbody = document.getElementById("list");
         tbody.innerHTML = "";
@@ -140,9 +171,14 @@
             <td>${statusCell(a.status)}</td>`;
           tbody.appendChild(tr);
         });
+        if (fromButton) {
+          msg.textContent = "List updated.";
+          msg.className = "ok";
+        }
       } catch (e) {
-        document.getElementById("msg").textContent = "Unable to load attendees.";
-        document.getElementById("msg").className = "error";
+        console.error(e);
+        msg.textContent = "Unable to load attendees.";
+        msg.className = "error";
       }
     }
 
@@ -151,11 +187,9 @@
       const msg = document.getElementById("msg");
       msg.className = "";
       msg.textContent = "Submitting…";
-
       try {
         const res = await fetch(`/checkin/${encodeURIComponent(id)}`, { method: "POST" });
         const data = await res.json().catch(() => ({}));
-
         if (!res.ok) {
           msg.textContent = data.detail || "Check-in failed.";
           msg.className = "error";
@@ -163,19 +197,21 @@
           msg.textContent = data.message || "Check-in started.";
           msg.className = "ok";
         }
-        await refresh();
+        await refresh(false);
       } catch (e) {
         msg.textContent = "Request failed.";
         msg.className = "error";
       }
     }
 
+    document.getElementById("btnCheckin").addEventListener("click", checkin);
+    document.getElementById("btnRefresh").addEventListener("click", () => refresh(true));
     document.getElementById("attendeeId").addEventListener("keypress", (e) => {
       if (e.key === "Enter") checkin();
     });
 
-    refresh();
-    setInterval(refresh, 2000);
+    refresh(false);
+    setInterval(() => refresh(false), 2000);
   </script>
 </body>
 </html>
