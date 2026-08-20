@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from hmac_service import verify_signed_request
 from attendees import (
     seed_attendees, get_attendee, set_attendee, list_attendees,
-    enqueue_print_job, STATUS_NOT, STATUS_PENDING, STATUS_CHECKED
+    enqueue_print_job, STATUS_NOT, STATUS_PENDING, STATUS_CHECKED, r
 )
 
 load_dotenv()
@@ -180,31 +180,19 @@ def on_startup():
     t.start()
 
 
-@app.get("/")
-def kiosk():
-    return FileResponse("static/index.html")
-
 @app.post("/admin/reset")
 def admin_reset(x_admin_token: str | None = Header(default=None, alias="X-Admin-Token")):
-    """
-    Reset all attendees to not_checked_in and clear the print queue.
-    Protected by a simple shared token for the demo.
-    """
+    """Reset all attendees to not_checked_in and clear the print queue."""
     expected = os.getenv("ADMIN_TOKEN", "demo-reset-token")
     if x_admin_token != expected:
         raise HTTPException(status_code=401, detail="Invalid admin token")
 
-    # Reset attendees
     for att_id in ("ATT-001", "ATT-002", "ATT-003"):
         att = get_attendee(att_id)
         if att:
             att["status"] = STATUS_NOT
             set_attendee(att)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-    # Clear print queue
-    from attendees import r
     r.delete("print_queue")
 
     logger.info("ADMIN | attendees and print queue reset")
@@ -213,3 +201,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
         "message": "All attendees reset to not_checked_in; print queue cleared",
         "attendees": list_attendees(),
     }
+
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/")
+def kiosk():
+    return FileResponse("static/index.html")
