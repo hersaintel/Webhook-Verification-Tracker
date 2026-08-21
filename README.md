@@ -1,104 +1,154 @@
-# Modern Webhook Signature Verification
+# Solstice Events – Async Check-in Kiosk
 
-A focused prototype that demonstrates secure webhook ingestion using HMAC-SHA256 with timestamp-based replay protection.
+Event check-in service for **Solstice Events Co.**, built after a forced pivot from a synchronous badge-printer API to an **asynchronous queue + webhook** model.
 
-## Goal
+The project also documents the earlier learning path: HMAC webhook verification → modern signed callbacks with replay protection → Redis-backed async check-in.
 
-Accept only valid signed requests and reject everything else:
+**Live demo:** https://solstice-checkin.onrender.com
 
-- Missing signature header
-- Invalid signature
-- Expired or future timestamp (replay protection)
-- Wrong secret
+---
 
-## How It Works
+## Client problem (pivot)
 
-### Signature Format
+Originally the kiosk was expected to:
 
-The sender creates a header in this format:
+1. Scan an attendee QR code  
+2. Call the badge-printer vendor **synchronously** over REST  
+3. Wait for success  
+4. Only then show **Checked In**  
+5. Block duplicate scans (no second badge)
 
-X-Signature: t=1712345678,v1=a1b2c3d4e5f6...
+The vendor then **deprecated the synchronous print API** with no deadline extension. The service had to be rebuilt so that:
+
+- A print request is **published to a message queue**
+- The kiosk exposes a **webhook** for the completion callback  
+- The UI shows **Pending** until confirmation arrives  
+- **Duplicate-scan protection** still holds if callbacks arrive late or out of order  
+
+**New technology introduced:** Redis (queue + attendee state).
+
+---
+
+## Solution overview
+
+```text
+QR scan / Check In
+    → POST/GET /checkin/{id}
+    → if already checked_in → 409 (no second print)
+    → else status = pending, job pushed to Redis queue
+
+In-process worker (simulates badge printer)
+    → BRPOP job
+    → simulate print delay
+    → build HMAC-signed callback (t=...,v1=...)
+    → verify signature (same rules as external webhook)
+    → status = checked_in
+
+Kiosk UI
+    → polls /attendees
+    → shows Not checked in | Pending (spinner) | Checked in
+External vendors can still call POST /webhook with a valid X-Signature header.
+
+Journey (how this project evolved)
+
+PhaseFocus1Core HMAC generate/verify, timing-safe compare, unit tests2Warehouse-style sender + /webhook receiver3Modern signature format: t=<timestamp>,v1=<hmac> + replay window4Pivot: Solstice async check-in, Redis queue, pending UI5Kiosk UI, QR codes, admin reset, HTTPS deploy on Render
+
+Features
+
+Async check-in (pending until print confirmation)
+Redis job queue
+HMAC-SHA256 callbacks with timestamp / replay protection
+Timing-safe comparison (hmac.compare_digest)
+Duplicate scan protection (HTTP 409)
+Safe handling of late/duplicate callbacks (only pending → checked_in)
+Kiosk UI with status colours and pending spinner
+On-page QR codes for ATT-001 / ATT-002 / ATT-003
+POST /admin/reset for demo re-runs
+Public HTTPS deployment (Render free tier; worker runs in-process)
 
 
-
-- `t` = Unix timestamp
-- `v1` = HMAC-SHA256 of the string `timestamp.body`
-
-### Verification Steps
-
-1. Check that the `X-Signature` header exists
-2. Parse the timestamp and signature
-3. Reject if the timestamp is outside the allowed window (±5 minutes)
-4. Recompute the HMAC over `timestamp.body`
-5. Perform a timing-safe comparison
-6. Accept or reject accordingly
-
-## Project Structure
-
-hmac-prototype/
-├── app.py                 # FastAPI receiver
-├── hmac_service.py        # HMAC helpers + modern verification
-├── sender.py              # Simulated warehouse sender
+Project structure
+texthmac-prototype/
+├── app.py              # FastAPI: check-in, webhook, worker thread, kiosk
+├── attendees.py        # Redis attendee state + print queue
+├── hmac_service.py     # HMAC helpers + modern verify
+├── sender.py           # Optional standalone printer worker (local)
+├── static/
+│   ├── index.html      # Kiosk UI
+│   └── qrcodes/        # ATT-001/002/003 QR images
 ├── test_hmac.py
 ├── test_e2e.py
+├── requirements.txt
 ├── .env.example
 ├── .gitignore
-└── README.md
+├── README.md
+└── Tracker.md
 
-
-## Quick Start
-
-### 1. Setup
-
-``` bash
+Local setup
 python3 -m venv venv
 source venv/bin/activate
-pip install fastapi uvicorn httpx pytest pytest-cov
+pip install -r requirements.txt
 
-2. Environment
-export HMAC_SECRET="super-secret-key-change-me"
+sudo systemctl start redis-server   # or redis-server
+export HMAC_SECRET=super-secret-key-change-me
+export REDIS_URL=redis://localhost:6379/0
+export ADMIN_TOKEN=demo-reset-token
 
-3. Run the receiver
 uvicorn app:app --reload --port 8000
+Open http://127.0.0.1:8000
+The printer worker runs inside the web process (thread).
+sender.py is optional for local experiments with a separate process.
 
-4. Send a valid request
-python sender.py
-Expected result: HTTP 200 – request accepted.
+Demo script (instructor)
+
+Reset state:Bashcurl -X POST https://solstice-checkin.onrender.com/admin/reset \
+  -H "X-Admin-Token: demo-reset-token"
+Open https://solstice-checkin.onrender.com/
+Scan ATT-001 QR (or Check In) → Pending → Checked in
+Scan ATT-001 again → already checked in, no second print (409)
+Optionally check in ATT-002 / ATT-003
+
+Warm the free-tier app first: curl https://solstice-checkin.onrender.com/health
+
+Main API
+
+MethodPathDescriptionGET/Kiosk UIGET/healthHealth 
+checkGET/attendeesList attendees + statusGET/POST/checkin/{id}Start check-in (QR uses GET)POST/webhookHMAC-signed print completion callbackPOST/admin/resetReset attendees + clear queue (X-Admin-Token)GET/docsOpenAPI docs
+
+Signature format (webhook)
+textX-Signature: t=<unix_timestamp>,v1=<hmac_hex>
+Signed payload: timestamp.body
+Rejected if missing header, bad signature, or timestamp outside ±5 minutes.
+
+Environment variables
+
+VariablePurposeHMAC_SECRETShared secret for signaturesREDIS_URLRedis connection stringTOLERANCE_SECONDSReplay window (default 300)PRINT_DELAY_SECONDSSimulated print latency (default 2)ADMIN_TOKENToken for /admin/reset
+Never commit .env.
+
+Security notes
+
+Timing-safe HMAC compare
+Timestamp-based replay protection
+Secret only in environment variables
+Duplicate check-in does not enqueue another print job
+Callbacks only promote pending → checked_in
 
 
-Demonstration of Rejection Cases
+Deploy notes (Render)
 
-Missing header
+Free Web Service only (Background Workers are paid)
+Printer logic runs in-process on startup
+Redis via Key Value or Upstash (REDIS_URL)
+Free tier may sleep; hit /health before a live demo
 
-curl -X POST http://127.0.0.1:8000/webhook \
-  -H "Content-Type: application/json" \
-  -d '{"event":"test"}'
 
-Invalid signature
+Tests
+Bashpython -m pytest -v --cov=hmac_service --cov-report=term-missing
 
-curl -X POST http://127.0.0.1:8000/webhook \
-  -H "Content-Type: application/json" \
-  -H "X-Signature: t=1712345678,v1=invalidsignature" \
-  -d '{"event":"test"}'
-Wrong secret
-HMAC_SECRET="wrong-secret" python sender.py
+What we would improve with more time
 
-Expired timestamp (replay)
-
-Manually craft a request with an old timestamp. The receiver will reject it with:
-
-Timestamp outside allowed tolerance (possible replay)
-
-Available Endpoints
-
-MethodPathDescriptionGET/healthHealth 
-checkPOST/webhookMain signature verification endpointGET/eventsRecent accepted events (for demo)GET/docsAutomatic API documentation
-Security Properties
-
-Timing-safe comparison (hmac.compare_digest)
-Timestamp-based replay protection (5-minute tolerance)
-Shared secret never sent over the wire
-Clear structured rejection logging
-
-Running Tests
-python -m pytest -v --cov=hmac_service --cov-report=term-missing
+Separate worker process in production
+Persistent audit log of scans and callbacks
+Real vendor webhook integration tests
+Stronger admin authentication (e.g. OAuth)
+Alignment with the Standard Webhooks specification
